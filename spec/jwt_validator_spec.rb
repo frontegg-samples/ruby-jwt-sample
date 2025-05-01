@@ -8,6 +8,10 @@ RSpec.describe FronteggJWTValidator do
   let(:jwks_uri) { "https://#{domain}/.well-known/openid-configuration/jwks" }
   let(:config_uri) { "https://#{domain}/.well-known/openid-configuration" }
 
+  # Generate a key pair for testing
+  let(:rsa_key) { OpenSSL::PKey::RSA.new(2048) }
+  let(:jwk) { JWT::JWK.new(rsa_key) }
+
   # Sample JWKS response
   let(:sample_jwks) do
     {
@@ -15,8 +19,8 @@ RSpec.describe FronteggJWTValidator do
         {
           "kty" => "RSA",
           "kid" => "test-key-1",
-          "n" => "sample-modulus",
-          "e" => "AQAB",
+          "n" => Base64.urlsafe_encode64(rsa_key.n.to_s(2)),
+          "e" => Base64.urlsafe_encode64(rsa_key.e.to_s(2)),
           "use" => "sig",
           "alg" => "RS256"
         }
@@ -38,7 +42,7 @@ RSpec.describe FronteggJWTValidator do
   let(:valid_token) do
     JWT.encode(
       { sub: 'user123', exp: Time.now.to_i + 3600 },
-      OpenSSL::PKey::RSA.new(2048),
+      rsa_key,
       'RS256',
       { kid: 'test-key-1' }
     )
@@ -63,9 +67,9 @@ RSpec.describe FronteggJWTValidator do
   end
 
   describe '#initialize' do
-    it 'sets the domain and constructs the JWKS URI' do
+    it 'sets the domain and constructs the config URI' do
       expect(validator.instance_variable_get(:@domain)).to eq(domain)
-      expect(validator.instance_variable_get(:@jwks_uri)).to eq(jwks_uri)
+      expect(validator.instance_variable_get(:@config_uri)).to eq(config_uri)
     end
   end
 
