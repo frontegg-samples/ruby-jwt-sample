@@ -3,7 +3,7 @@ require 'jwt'
 require 'webmock/rspec'
 
 RSpec.describe FronteggJWTValidator do
-  let(:domain) { 'api.frontegg.com' }
+  let(:domain) { 'auth.loudapi.com' }
   let(:validator) { described_class.new(domain) }
   let(:jwks_uri) { "https://#{domain}/.well-known/openid-configuration/jwks" }
 

@@ -52,7 +52,7 @@ if __FILE__ == $0
   Dotenv.load
 
   # Get domain from environment variable or use default
-  domain = ENV['FRONTEGG_DOMAIN'] || 'api.frontegg.com'
+  domain = ENV['FRONTEGG_DOMAIN'] || 'auth.loudapi.com'
 
   # Initialize validator
   validator = FronteggJWTValidator.new(domain)
