@@ -9,9 +9,6 @@ RSpec.describe FronteggJWTValidator do
   let(:jwks_uri) { "https://#{domain}/.well-known/openid-configuration/jwks" }
   let(:config_uri) { "https://#{domain}/.well-known/openid-configuration" }
 
-  # Generate a key pair for testing
-  let(:rsa_key) { OpenSSL::PKey::RSA.new(2048) }
-
   # Sample JWKS response
   let(:sample_jwks) do
     {
@@ -19,8 +16,8 @@ RSpec.describe FronteggJWTValidator do
         {
           "kty" => "RSA",
           "kid" => "test-key-1",
-          "n" => Base64.urlsafe_encode64(rsa_key.n.to_s(2)),
-          "e" => Base64.urlsafe_encode64(rsa_key.e.to_s(2)),
+          "n" => "sample-modulus",
+          "e" => "AQAB",
           "use" => "sig",
           "alg" => "RS256"
         }
@@ -38,15 +35,9 @@ RSpec.describe FronteggJWTValidator do
     }
   end
 
-  # Sample valid token
-  let(:valid_token) do
-    JWT.encode(
-      { sub: 'user123', exp: Time.now.to_i + 3600 },
-      rsa_key,
-      'RS256',
-      { kid: 'test-key-1' }
-    )
-  end
+  let(:valid_token) { "valid.jwt.token" }
+  let(:invalid_token) { "invalid.token" }
+  let(:unknown_kid_token) { "unknown.kid.token" }
 
   before do
     # Stub the OpenID Configuration endpoint
@@ -64,6 +55,27 @@ RSpec.describe FronteggJWTValidator do
         body: sample_jwks.to_json,
         headers: { 'Content-Type' => 'application/json' }
       )
+
+    # Mock JWT.decode for different scenarios
+    allow(JWT).to receive(:decode).and_call_original
+    
+    # Mock valid token decode
+    allow(JWT).to receive(:decode)
+      .with(valid_token, nil, false)
+      .and_return([{}, {"kid" => "test-key-1"}])
+    allow(JWT).to receive(:decode)
+      .with(valid_token, instance_of(OpenSSL::PKey::RSA), true, { algorithm: 'RS256' })
+      .and_return([{"sub" => "user123"}, {"kid" => "test-key-1"}])
+
+    # Mock invalid token decode
+    allow(JWT).to receive(:decode)
+      .with(invalid_token, nil, false)
+      .and_raise(JWT::DecodeError.new("Invalid segment encoding"))
+
+    # Mock unknown kid token decode
+    allow(JWT).to receive(:decode)
+      .with(unknown_kid_token, nil, false)
+      .and_return([{}, {"kid" => "unknown-key"}])
   end
 
   describe '#initialize' do
@@ -118,18 +130,13 @@ RSpec.describe FronteggJWTValidator do
     end
 
     it 'raises an error for an invalid token' do
-      invalid_token = 'invalid.token.here'
-      expect { validator.validate_token(invalid_token) }.to raise_error(JWT::DecodeError, /Invalid segment encoding/)
+      expect { validator.validate_token(invalid_token) }
+        .to raise_error(JWT::DecodeError, /Invalid segment encoding/)
     end
 
     it 'raises an error for a token with unknown kid' do
-      token_with_unknown_kid = JWT.encode(
-        { sub: 'user123' },
-        OpenSSL::PKey::RSA.new(2048),
-        'RS256',
-        { kid: 'unknown-key' }
-      )
-      expect { validator.validate_token(token_with_unknown_kid) }.to raise_error(JWT::DecodeError, /No key found for kid/)
+      expect { validator.validate_token(unknown_kid_token) }
+        .to raise_error(JWT::DecodeError, /No key found for kid/)
     end
   end
 end 

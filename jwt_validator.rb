@@ -48,8 +48,8 @@ class FronteggJWTValidator
   end
 
   def validate_token(token)
+    # Decode the token header to get the kid
     begin
-      # Decode the token header to get the kid
       header = JWT.decode(token, nil, false).last
       kid = header['kid']
 
