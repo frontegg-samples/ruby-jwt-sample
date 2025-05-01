@@ -30,7 +30,7 @@ gem install frontegg_jwt_validator
 require 'frontegg_jwt_validator'
 
 # Initialize the validator with your Frontegg domain
-validator = FronteggJWTValidator.new('api.frontegg.com')
+validator = FronteggJWTValidator.new('acme.frontegg.com')
 
 # Fetch the JWKS
 validator.fetch_jwks
