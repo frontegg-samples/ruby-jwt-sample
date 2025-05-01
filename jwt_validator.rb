@@ -52,29 +52,23 @@ class FronteggJWTValidator
   end
 
   def validate_token(token)
-    # First decode without verification to get the kid
     begin
+      # First decode without verification to get the kid
       header = JWT.decode(token, nil, false).last
-    rescue JWT::DecodeError => e
-      raise JWT::DecodeError, e.message
-    end
+      kid = header['kid']
+      raise JWT::DecodeError, "No 'kid' found in token header" unless kid
 
-    # Get the kid from header
-    kid = header['kid']
-    raise JWT::DecodeError, "No 'kid' found in token header" unless kid
+      # Get the appropriate signing key
+      key = get_signing_key(kid)
+      raise JWT::DecodeError, "No key found for kid: #{kid}" unless key
 
-    # Get the appropriate signing key
-    key = get_signing_key(kid)
-    raise JWT::DecodeError, "No key found for kid: #{kid}" unless key
-
-    # Validate the token
-    begin
+      # Validate the token
       decoded_token = JWT.decode(token, key, true, { algorithm: 'RS256' })
       decoded_token.first
-    rescue JWT::VerificationError
-      raise JWT::DecodeError, "Signature verification failed"
     rescue JWT::DecodeError => e
       raise JWT::DecodeError, e.message
+    rescue JWT::VerificationError => e
+      raise JWT::DecodeError, "Signature verification failed"
     rescue StandardError => e
       raise JWT::DecodeError, "Token validation failed: #{e.message}"
     end

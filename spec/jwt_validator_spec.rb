@@ -9,6 +9,9 @@ RSpec.describe FronteggJWTValidator do
   let(:jwks_uri) { "https://#{domain}/.well-known/openid-configuration/jwks" }
   let(:config_uri) { "https://#{domain}/.well-known/openid-configuration" }
 
+  # Mock RSA key
+  let(:mock_public_key) { instance_double(OpenSSL::PKey::RSA, public?: true) }
+
   # Sample JWKS response
   let(:sample_jwks) do
     {
@@ -56,12 +59,20 @@ RSpec.describe FronteggJWTValidator do
         headers: { 'Content-Type' => 'application/json' }
       )
 
-    # Allow any JWT.decode call to pass through to our mocks
+    # Mock RSA key creation
+    allow(OpenSSL::PKey::RSA).to receive(:new).and_return(mock_public_key)
+    allow(OpenSSL::BN).to receive(:new).and_return(double('BN'))
+
+    # Mock JWT decode
     allow(JWT).to receive(:decode) do |token, key, verify, options|
       case token
       when valid_token
         if verify
-          [{"sub" => "user123"}, {"kid" => "test-key-1"}]
+          if key == mock_public_key
+            [{"sub" => "user123"}, {"kid" => "test-key-1"}]
+          else
+            raise JWT::VerificationError, "Signature verification failed"
+          end
         else
           [{}, {"kid" => "test-key-1"}]
         end
