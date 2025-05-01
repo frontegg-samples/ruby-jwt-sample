@@ -5,6 +5,8 @@ require 'dotenv'
 require 'base64'
 
 class FronteggJWTValidator
+  class FetchError < StandardError; end
+
   def initialize(domain)
     @domain = domain
     @config_uri = "https://#{domain}/.well-known/openid-configuration"
@@ -16,7 +18,7 @@ class FronteggJWTValidator
     # First fetch the OpenID Configuration to get the JWKS URI
     config_response = HTTParty.get(@config_uri)
     unless config_response.success?
-      raise "Failed to fetch OpenID Configuration from #{@config_uri}"
+      raise FetchError, "Failed to fetch OpenID Configuration from #{@config_uri}"
     end
 
     config = JSON.parse(config_response.body)
@@ -27,7 +29,7 @@ class FronteggJWTValidator
     if response.success?
       @jwks = JSON.parse(response.body)
     else
-      raise "Failed to fetch JWKS from #{@jwks_uri}"
+      raise FetchError, "Failed to fetch JWKS from #{@jwks_uri}"
     end
   end
 
@@ -45,27 +47,36 @@ class FronteggJWTValidator
     rsa_key = OpenSSL::PKey::RSA.new
     rsa_key.set_key(OpenSSL::BN.new(n, 2), OpenSSL::BN.new(e, 2), nil)
     rsa_key
+  rescue StandardError => e
+    raise JWT::DecodeError, "Failed to process JWK: #{e.message}"
   end
 
   def validate_token(token)
-    # Decode the token header to get the kid
+    # First decode without verification to get the kid
     begin
       header = JWT.decode(token, nil, false).last
-      kid = header['kid']
-
-      # Get the appropriate signing key
-      key = get_signing_key(kid)
-      raise JWT::DecodeError, "No key found for kid: #{kid}" unless key
-
-      # Validate the token
-      decoded_token = JWT.decode(token, key, true, { algorithm: 'RS256' })
-      decoded_token.first
     rescue JWT::DecodeError => e
       raise JWT::DecodeError, e.message
-    rescue JWT::VerificationError => e
+    end
+
+    # Get the kid from header
+    kid = header['kid']
+    raise JWT::DecodeError, "No 'kid' found in token header" unless kid
+
+    # Get the appropriate signing key
+    key = get_signing_key(kid)
+    raise JWT::DecodeError, "No key found for kid: #{kid}" unless key
+
+    # Validate the token
+    begin
+      decoded_token = JWT.decode(token, key, true, { algorithm: 'RS256' })
+      decoded_token.first
+    rescue JWT::VerificationError
       raise JWT::DecodeError, "Signature verification failed"
-    rescue StandardError => e
+    rescue JWT::DecodeError => e
       raise JWT::DecodeError, e.message
+    rescue StandardError => e
+      raise JWT::DecodeError, "Token validation failed: #{e.message}"
     end
   end
 end
