@@ -14,7 +14,8 @@ RSpec.describe FronteggJWTValidator do
 
   # Create a proper JWK from our RSA key
   let(:jwk) do
-    JWT::JWK.new(TEST_RSA_KEY, 'test-key-1').export
+    # Convert JWT::JWK export to use string keys consistently
+    JWT::JWK.new(TEST_RSA_KEY, 'test-key-1').export.transform_keys(&:to_s)
   end
 
   # Sample JWKS response with our actual public key
