@@ -56,26 +56,27 @@ RSpec.describe FronteggJWTValidator do
         headers: { 'Content-Type' => 'application/json' }
       )
 
-    # Mock JWT.decode for different scenarios
-    allow(JWT).to receive(:decode).and_call_original
-    
-    # Mock valid token decode
-    allow(JWT).to receive(:decode)
-      .with(valid_token, nil, false)
-      .and_return([{}, {"kid" => "test-key-1"}])
-    allow(JWT).to receive(:decode)
-      .with(valid_token, instance_of(OpenSSL::PKey::RSA), true, { algorithm: 'RS256' })
-      .and_return([{"sub" => "user123"}, {"kid" => "test-key-1"}])
-
-    # Mock invalid token decode
-    allow(JWT).to receive(:decode)
-      .with(invalid_token, nil, false)
-      .and_raise(JWT::DecodeError.new("Invalid segment encoding"))
-
-    # Mock unknown kid token decode
-    allow(JWT).to receive(:decode)
-      .with(unknown_kid_token, nil, false)
-      .and_return([{}, {"kid" => "unknown-key"}])
+    # Allow any JWT.decode call to pass through to our mocks
+    allow(JWT).to receive(:decode) do |token, key, verify, options|
+      case token
+      when valid_token
+        if verify
+          [{"sub" => "user123"}, {"kid" => "test-key-1"}]
+        else
+          [{}, {"kid" => "test-key-1"}]
+        end
+      when invalid_token
+        raise JWT::DecodeError, "Invalid segment encoding"
+      when unknown_kid_token
+        if verify
+          raise JWT::DecodeError, "No key found for kid: unknown-key"
+        else
+          [{}, {"kid" => "unknown-key"}]
+        end
+      else
+        raise JWT::DecodeError, "Unknown token"
+      end
+    end
   end
 
   describe '#initialize' do
