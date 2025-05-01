@@ -39,14 +39,8 @@ class FronteggJWTValidator
     key = @jwks['keys'].find { |k| k['kid'] == kid }
     return nil unless key
 
-    # Convert JWK to PEM format
-    n = Base64.urlsafe_decode64(key['n'])
-    e = Base64.urlsafe_decode64(key['e'])
-    
-    # Create RSA key from components
-    rsa_key = OpenSSL::PKey::RSA.new
-    rsa_key.set_key(OpenSSL::BN.new(n, 2), OpenSSL::BN.new(e, 2), nil)
-    rsa_key
+    # Convert JWK to public key using JWT::JWK
+    JWT::JWK.import(key).public_key
   rescue StandardError => e
     raise JWT::DecodeError, "Failed to process JWK: #{e.message}"
   end

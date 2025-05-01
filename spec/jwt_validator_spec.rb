@@ -11,15 +11,10 @@ RSpec.describe FronteggJWTValidator do
 
   # Generate a real RSA key pair for testing
   let(:rsa_key) { OpenSSL::PKey::RSA.new(2048) }
+  
+  # Create a proper JWK from our RSA key
   let(:jwk) do
-    {
-      "kty" => "RSA",
-      "kid" => "test-key-1",
-      "n" => Base64.urlsafe_encode64(rsa_key.n.to_s(2)),
-      "e" => Base64.urlsafe_encode64(rsa_key.e.to_s(2)),
-      "use" => "sig",
-      "alg" => "RS256"
-    }
+    JWT::JWK.new(rsa_key, 'test-key-1').export
   end
 
   # Sample JWKS response with our actual public key
