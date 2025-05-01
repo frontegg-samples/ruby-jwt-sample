@@ -9,22 +9,23 @@ RSpec.describe FronteggJWTValidator do
   let(:jwks_uri) { "https://#{domain}/.well-known/openid-configuration/jwks" }
   let(:config_uri) { "https://#{domain}/.well-known/openid-configuration" }
 
-  # Mock RSA key
-  let(:mock_public_key) { instance_double(OpenSSL::PKey::RSA, public?: true) }
+  # Generate a real RSA key pair for testing
+  let(:rsa_key) { OpenSSL::PKey::RSA.new(2048) }
+  let(:jwk) do
+    {
+      "kty" => "RSA",
+      "kid" => "test-key-1",
+      "n" => Base64.urlsafe_encode64(rsa_key.n.to_s(2)),
+      "e" => Base64.urlsafe_encode64(rsa_key.e.to_s(2)),
+      "use" => "sig",
+      "alg" => "RS256"
+    }
+  end
 
-  # Sample JWKS response
+  # Sample JWKS response with our actual public key
   let(:sample_jwks) do
     {
-      "keys" => [
-        {
-          "kty" => "RSA",
-          "kid" => "test-key-1",
-          "n" => "sample-modulus",
-          "e" => "AQAB",
-          "use" => "sig",
-          "alg" => "RS256"
-        }
-      ]
+      "keys" => [jwk]
     }
   end
 
@@ -38,9 +39,26 @@ RSpec.describe FronteggJWTValidator do
     }
   end
 
-  let(:valid_token) { "valid.jwt.token" }
-  let(:invalid_token) { "invalid.token" }
-  let(:unknown_kid_token) { "unknown.kid.token" }
+  # Generate tokens using our RSA key
+  let(:valid_token) do
+    JWT.encode(
+      { sub: 'user123', exp: Time.now.to_i + 3600 },
+      rsa_key,
+      'RS256',
+      { kid: 'test-key-1' }
+    )
+  end
+
+  let(:invalid_token) { "invalid.token.here" }
+  
+  let(:unknown_kid_token) do
+    JWT.encode(
+      { sub: 'user123', exp: Time.now.to_i + 3600 },
+      OpenSSL::PKey::RSA.new(2048),
+      'RS256',
+      { kid: 'unknown-key' }
+    )
+  end
 
   before do
     # Stub the OpenID Configuration endpoint
@@ -58,36 +76,6 @@ RSpec.describe FronteggJWTValidator do
         body: sample_jwks.to_json,
         headers: { 'Content-Type' => 'application/json' }
       )
-
-    # Mock RSA key creation
-    allow(OpenSSL::PKey::RSA).to receive(:new).and_return(mock_public_key)
-    allow(OpenSSL::BN).to receive(:new).and_return(double('BN'))
-
-    # Mock JWT decode
-    allow(JWT).to receive(:decode) do |token, key, verify, options|
-      case token
-      when valid_token
-        if verify
-          if key == mock_public_key
-            [{"sub" => "user123"}, {"kid" => "test-key-1"}]
-          else
-            raise JWT::VerificationError, "Signature verification failed"
-          end
-        else
-          [{}, {"kid" => "test-key-1"}]
-        end
-      when invalid_token
-        raise JWT::DecodeError, "Invalid segment encoding"
-      when unknown_kid_token
-        if verify
-          raise JWT::DecodeError, "No key found for kid: unknown-key"
-        else
-          [{}, {"kid" => "unknown-key"}]
-        end
-      else
-        raise JWT::DecodeError, "Unknown token"
-      end
-    end
   end
 
   describe '#initialize' do
