@@ -3,18 +3,18 @@ require 'jwt'
 require 'webmock/rspec'
 require 'base64'
 
+# Generate a single RSA key pair for all tests
+TEST_RSA_KEY = OpenSSL::PKey::RSA.new(2048)
+
 RSpec.describe FronteggJWTValidator do
   let(:domain) { 'auth.loudapi.com' }
   let(:validator) { described_class.new(domain) }
   let(:jwks_uri) { "https://#{domain}/.well-known/openid-configuration/jwks" }
   let(:config_uri) { "https://#{domain}/.well-known/openid-configuration" }
 
-  # Generate a real RSA key pair for testing
-  let(:rsa_key) { OpenSSL::PKey::RSA.new(2048) }
-  
   # Create a proper JWK from our RSA key
   let(:jwk) do
-    JWT::JWK.new(rsa_key, 'test-key-1').export
+    JWT::JWK.new(TEST_RSA_KEY, 'test-key-1').export
   end
 
   # Sample JWKS response with our actual public key
@@ -38,7 +38,7 @@ RSpec.describe FronteggJWTValidator do
   let(:valid_token) do
     JWT.encode(
       { sub: 'user123', exp: Time.now.to_i + 3600 },
-      rsa_key,
+      TEST_RSA_KEY,
       'RS256',
       { kid: 'test-key-1' }
     )

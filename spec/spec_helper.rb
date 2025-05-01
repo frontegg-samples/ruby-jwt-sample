@@ -5,7 +5,7 @@ require 'dotenv'
 Dotenv.load('.env.test')
 
 # Load the main file
-require_relative '../lib/frontegg_jwt_validator'
+require_relative '../jwt_validator'
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure
