@@ -20,11 +20,4 @@ jobs:
         bundler-cache: true
 
     - name: Run tests
-      run: bundle exec rspec
-
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-results
-        path: spec/reports/ 
+      run: bundle exec rspec 
