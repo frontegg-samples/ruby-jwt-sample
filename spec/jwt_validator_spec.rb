@@ -6,6 +6,7 @@ RSpec.describe FronteggJWTValidator do
   let(:domain) { 'auth.loudapi.com' }
   let(:validator) { described_class.new(domain) }
   let(:jwks_uri) { "https://#{domain}/.well-known/openid-configuration/jwks" }
+  let(:config_uri) { "https://#{domain}/.well-known/openid-configuration" }
 
   # Sample JWKS response
   let(:sample_jwks) do
@@ -23,6 +24,16 @@ RSpec.describe FronteggJWTValidator do
     }
   end
 
+  # Sample OpenID Configuration
+  let(:sample_config) do
+    {
+      "issuer" => "https://#{domain}",
+      "jwks_uri" => jwks_uri,
+      "authorization_endpoint" => "https://#{domain}/oauth/authorize",
+      "token_endpoint" => "https://#{domain}/oauth/token"
+    }
+  end
+
   # Sample valid token
   let(:valid_token) do
     JWT.encode(
@@ -34,6 +45,14 @@ RSpec.describe FronteggJWTValidator do
   end
 
   before do
+    # Stub the OpenID Configuration endpoint
+    stub_request(:get, config_uri)
+      .to_return(
+        status: 200,
+        body: sample_config.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
     # Stub the JWKS endpoint
     stub_request(:get, jwks_uri)
       .to_return(

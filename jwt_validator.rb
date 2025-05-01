@@ -6,11 +6,22 @@ require 'dotenv'
 class FronteggJWTValidator
   def initialize(domain)
     @domain = domain
-    @jwks_uri = "https://#{domain}/.well-known/openid-configuration/jwks"
+    @config_uri = "https://#{domain}/.well-known/openid-configuration"
+    @jwks_uri = nil
     @jwks = nil
   end
 
   def fetch_jwks
+    # First fetch the OpenID Configuration to get the JWKS URI
+    config_response = HTTParty.get(@config_uri)
+    unless config_response.success?
+      raise "Failed to fetch OpenID Configuration from #{@config_uri}"
+    end
+
+    config = JSON.parse(config_response.body)
+    @jwks_uri = config['jwks_uri']
+
+    # Now fetch the JWKS
     response = HTTParty.get(@jwks_uri)
     if response.success?
       @jwks = JSON.parse(response.body)
