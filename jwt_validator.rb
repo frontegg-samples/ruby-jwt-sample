@@ -2,6 +2,7 @@ require 'jwt'
 require 'httparty'
 require 'json'
 require 'dotenv'
+require 'base64'
 
 class FronteggJWTValidator
   def initialize(domain)
@@ -36,24 +37,36 @@ class FronteggJWTValidator
     key = @jwks['keys'].find { |k| k['kid'] == kid }
     return nil unless key
 
-    # Convert JWK to RSA public key
-    JWT::JWK.import(key).public_key
+    # Convert JWK to PEM format
+    n = Base64.urlsafe_decode64(key['n'])
+    e = Base64.urlsafe_decode64(key['e'])
+    
+    # Create RSA key from components
+    rsa_key = OpenSSL::PKey::RSA.new
+    rsa_key.set_key(OpenSSL::BN.new(n, 2), OpenSSL::BN.new(e, 2), nil)
+    rsa_key
   end
 
   def validate_token(token)
-    # Decode the token header to get the kid
-    header = JWT.decode(token, nil, false).last
-    kid = header['kid']
+    begin
+      # Decode the token header to get the kid
+      header = JWT.decode(token, nil, false).last
+      kid = header['kid']
 
-    # Get the appropriate signing key
-    key = get_signing_key(kid)
-    raise "No key found for kid: #{kid}" unless key
+      # Get the appropriate signing key
+      key = get_signing_key(kid)
+      raise JWT::DecodeError, "No key found for kid: #{kid}" unless key
 
-    # Validate the token
-    decoded_token = JWT.decode(token, key, true, { algorithm: 'RS256' })
-    decoded_token.first
-  rescue JWT::DecodeError => e
-    raise "Invalid token: #{e.message}"
+      # Validate the token
+      decoded_token = JWT.decode(token, key, true, { algorithm: 'RS256' })
+      decoded_token.first
+    rescue JWT::DecodeError => e
+      raise JWT::DecodeError, e.message
+    rescue JWT::VerificationError => e
+      raise JWT::DecodeError, "Signature verification failed"
+    rescue StandardError => e
+      raise JWT::DecodeError, e.message
+    end
   end
 end
 
@@ -80,7 +93,7 @@ if __FILE__ == $0
       payload = validator.validate_token(token)
       puts "Token is valid!"
       puts "Payload: #{JSON.pretty_generate(payload)}"
-    rescue => e
+    rescue JWT::DecodeError => e
       puts "Error: #{e.message}"
     end
   else

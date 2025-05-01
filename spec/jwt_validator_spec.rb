@@ -1,6 +1,7 @@
 require 'spec_helper'
 require 'jwt'
 require 'webmock/rspec'
+require 'base64'
 
 RSpec.describe FronteggJWTValidator do
   let(:domain) { 'auth.loudapi.com' }
@@ -10,7 +11,6 @@ RSpec.describe FronteggJWTValidator do
 
   # Generate a key pair for testing
   let(:rsa_key) { OpenSSL::PKey::RSA.new(2048) }
-  let(:jwk) { JWT::JWK.new(rsa_key) }
 
   # Sample JWKS response
   let(:sample_jwks) do
@@ -119,7 +119,7 @@ RSpec.describe FronteggJWTValidator do
 
     it 'raises an error for an invalid token' do
       invalid_token = 'invalid.token.here'
-      expect { validator.validate_token(invalid_token) }.to raise_error(JWT::DecodeError)
+      expect { validator.validate_token(invalid_token) }.to raise_error(JWT::DecodeError, /Invalid segment encoding/)
     end
 
     it 'raises an error for a token with unknown kid' do
@@ -129,7 +129,7 @@ RSpec.describe FronteggJWTValidator do
         'RS256',
         { kid: 'unknown-key' }
       )
-      expect { validator.validate_token(token_with_unknown_kid) }.to raise_error(/No key found for kid/)
+      expect { validator.validate_token(token_with_unknown_kid) }.to raise_error(JWT::DecodeError, /No key found for kid/)
     end
   end
 end 
